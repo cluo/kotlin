@@ -16,8 +16,6 @@
 
 package org.jetbrains.kotlin.compilerRunner
 
-import net.rubygrapefruit.platform.Native
-import net.rubygrapefruit.platform.ProcessLauncher
 import org.gradle.api.Project
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.common.arguments.CommonCompilerArguments
@@ -37,8 +35,9 @@ import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.gradle.plugin.ParentLastURLClassLoader
 import org.jetbrains.kotlin.gradle.plugin.kotlinDebug
 import org.jetbrains.kotlin.incremental.*
-
-import java.io.*
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.PrintStream
 import kotlin.concurrent.thread
 
 internal const val KOTLIN_COMPILER_EXECUTION_STRATEGY_PROPERTY = "kotlin.compiler.execution.strategy"
@@ -334,9 +333,7 @@ internal class GradleCompilerRunner(private val project: Project) : KotlinCompil
         return exitCode
     }
 
-    private fun logFinish(strategy: String) {
-        log.debug("Finished executing kotlin compiler using $strategy strategy")
-    }
+    private fun logFinish(strategy: String) = log.logFinish(strategy)
 
     override fun getDaemonConnection(environment: GradleCompilerEnvironment): CompileServiceSession? {
         val compilerId = CompilerId.makeCompilerId(environment.compilerClasspath)
