@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.codegen.coroutines
 
 import com.intellij.util.containers.Stack
+import org.jetbrains.kotlin.backend.common.CodegenUtil
 import org.jetbrains.kotlin.codegen.AsmUtil
 import org.jetbrains.kotlin.codegen.ClassBuilder
 import org.jetbrains.kotlin.codegen.StackValue
@@ -28,6 +29,7 @@ import org.jetbrains.kotlin.codegen.optimization.common.*
 import org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackMethodTransformer
 import org.jetbrains.kotlin.codegen.optimization.fixStack.top
 import org.jetbrains.kotlin.codegen.optimization.transformer.MethodTransformer
+import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes
 import org.jetbrains.kotlin.resolve.jvm.diagnostics.JvmDeclarationOrigin
 import org.jetbrains.kotlin.utils.sure
@@ -50,6 +52,7 @@ class CoroutineTransformerMethodVisitor(
         private val containingClassInternalName: String,
         obtainClassBuilderForCoroutineState: () -> ClassBuilder,
         private val isForNamedFunction: Boolean,
+        private val element: KtElement,
         // It's only matters for named functions, may differ from '!isStatic(access)' in case of DefaultImpls
         private val needDispatchReceiver: Boolean = false,
         // May differ from containingClassInternalName in case of DefaultImpls
@@ -107,10 +110,15 @@ class CoroutineTransformerMethodVisitor(
             val startLabel = LabelNode()
             val defaultLabel = LabelNode()
             val firstToInsertBefore = actualCoroutineStart
+            val tableSwitchLabel = LabelNode()
+            val lineNumber = CodegenUtil.getLineNumberForElement(element, false) ?: 0
+
             // tableswitch(this.label)
             insertBefore(firstToInsertBefore,
                          insnListOf(
                                  *withInstructionAdapter { loadCoroutineSuspendedMarker() }.toArray(),
+                                 tableSwitchLabel,
+                                 LineNumberNode(lineNumber, tableSwitchLabel), // Allow debugger to stop on enter into suspend function
                                  VarInsnNode(Opcodes.ASTORE, suspendMarkerVarIndex),
                                  VarInsnNode(Opcodes.ALOAD, continuationIndex),
                                  createInsnForReadingLabel(),
@@ -479,6 +487,10 @@ class CoroutineTransformerMethodVisitor(
                 ifacmpne(continuationLabelAfterLoadedResult.label)
 
                 // Exit
+                val returnLabel = LabelNode()
+                visitLabel(returnLabel.label)
+                val lineNumber = CodegenUtil.getLineNumberForElement(element, false) ?: 0
+                visitLineNumber(lineNumber, returnLabel.label) // Special line number to stop in debugger before suspend return
                 load(suspendMarkerVarIndex, AsmTypes.OBJECT_TYPE)
                 areturn(AsmTypes.OBJECT_TYPE)
                 // Mark place for continuation
